@@ -78,6 +78,7 @@ class CRSResult:
     unique_crashes: int = 0
     findings: list[Finding] = field(default_factory=list)
     generated_at: str = ""
+    llm_provider: str = ""
 
     @property
     def fixed_count(self) -> int:

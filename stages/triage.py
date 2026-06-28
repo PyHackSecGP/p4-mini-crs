@@ -70,9 +70,9 @@ def _run_asan(binary: str, crash_file: str) -> str:
     env = {**os.environ, **env_extra}
     result = subprocess.run(
         [binary, crash_file],
-        capture_output=True, text=True, timeout=10, env=env,
+        capture_output=True, timeout=10, env=env,
     )
-    return result.stdout + result.stderr
+    return (result.stdout + result.stderr).decode('utf-8', errors='replace')
 
 
 def _run_gdb(binary: str, crash_file: str) -> str:

@@ -127,8 +127,8 @@ def generate_patch(
     Path(output_dir).mkdir(parents=True, exist_ok=True)
     validation, compile_out, run_out = _validate_patch(source_dir, crash.crash_file, output_dir)
 
-    if validation != ValidationResult.FIXED:
-        shutil.copy2(backup, str(main_c))
+    # Always restore original so the target stays vulnerable between runs
+    shutil.copy2(backup, str(main_c))
 
     return Patch(
         diff=diff,

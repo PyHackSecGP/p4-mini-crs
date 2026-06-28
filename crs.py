@@ -118,6 +118,7 @@ Examples:
             binary_path=afl_binary, fuzzing_duration_seconds=fuzz_duration,
             total_executions=int(fuzz_stats.get("execs_done", 0)),
             crashes_found=0, unique_crashes=0, generated_at=_now(),
+            llm_provider="" if args.no_llm else args.llm_provider,
         )
         report_path = output_dir / f"{target_name}_crs_report.html"
         generate_html(result, str(report_path))
@@ -177,6 +178,7 @@ Examples:
         unique_crashes=len(crashes),
         findings=findings,
         generated_at=_now(),
+        llm_provider="" if args.no_llm else args.llm_provider,
     )
 
     report_path = output_dir / f"{target_name}_crs_report.html"
