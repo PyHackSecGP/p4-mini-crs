@@ -74,9 +74,9 @@ def _validate_patch(source_dir: str, crash_file: str, output_dir: str) -> tuple[
     try:
         result = subprocess.run(
             [patched_binary, crash_file],
-            capture_output=True, text=True, timeout=10, env=env,
+            capture_output=True, timeout=10, env=env,
         )
-        run_out = result.stdout + result.stderr
+        run_out = (result.stdout + result.stderr).decode('utf-8', errors='replace')
         if result.returncode == 0 and "ERROR" not in run_out and "CHECK failed" not in run_out:
             return ValidationResult.FIXED, f"Compiled: {patched_binary}", run_out
         return ValidationResult.FAILED, f"Compiled: {patched_binary}", run_out

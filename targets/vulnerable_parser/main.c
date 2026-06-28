@@ -18,12 +18,12 @@ typedef struct {
 /* VULN-1: Stack buffer overflow — dest has fixed 64-byte buffer,
    no bounds check on src length. */
 void parse_name(char *dest, const char *src) {
-    strcpy(dest, src);  /* unsafe: no length check */
+    strncpy(dest, src, RECORD_SIZE - 1);  /* safe: bounded copy */
 }
 
 /* VULN-2: Format string — user-controlled format string passed directly. */
 void log_record(const char *fmt) {
-    printf(fmt);        /* unsafe: user controls format */
+    printf("%s\n", fmt);  /* safe: fmt is now data, not format string */
     printf("\n");
 }
 
@@ -57,7 +57,7 @@ int process_file(const char *path) {
         if (!fgets(line, sizeof(line), f)) break;
         records[i].value = atoi(line);
 
-        /* VULN-2 triggered here: name is printed as format string */
+        /* VULN-2 fixed: name is printed as data only */
         log_record(records[i].name);
     }
 
