@@ -37,10 +37,13 @@ def _detect_crash_type(output: str) -> CrashType:
     for pattern, ctype in _ASAN_PATTERNS:
         if pattern.search(output):
             return ctype
-    if "SIGSEGV" in output or "Segmentation fault" in output:
-        return CrashType.NULL_DEREF
+    # Format string crashes often appear as SIGSEGV inside printf/vprintf
+    if re.search(r"in\s+(v?printf|vfprintf|sprintf|vsnprintf)", output, re.I):
+        return CrashType.FORMAT_STRING
     if "SIGABRT" in output:
         return CrashType.STACK_OVERFLOW
+    if "SIGSEGV" in output or "Segmentation fault" in output:
+        return CrashType.NULL_DEREF
     return CrashType.UNKNOWN
 
 
