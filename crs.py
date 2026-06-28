@@ -16,9 +16,10 @@ from models import CRSResult, Finding
 from stages.builder import build_afl, build_asan
 from stages.fuzzer import run_afl
 from stages.triage import triage_crashes
-from stages.analyzer import analyze_crash, is_ollama_available
+from stages.analyzer import analyze_crash
 from stages.patcher import generate_patch
 from stages.reporter import generate_html
+from engine.llm_provider import provider_from_args, get_provider
 
 
 def main() -> None:
@@ -49,8 +50,18 @@ Examples:
                         help="Skip fuzzing — use --crashes instead")
     parser.add_argument("--crashes",  default="",
                         help="Directory of existing crash files (use with --no-fuzz)")
-    parser.add_argument("--no-llm",   action="store_true",
+    parser.add_argument("--no-llm",      action="store_true",
                         help="Skip LLM analysis and patching")
+    parser.add_argument("--llm-provider", default="ollama",
+                        choices=["ollama", "claude", "openai", "openai-compat"],
+                        help="LLM backend (default: ollama)")
+    parser.add_argument("--llm-model",   default="",
+                        help="Model name override (e.g. claude-sonnet-4-6, gpt-4o, hermes3:70b)")
+    parser.add_argument("--llm-endpoint", default="",
+                        help="API endpoint URL (ollama default: http://100.126.22.55:11434, "
+                             "required for openai-compat)")
+    parser.add_argument("--llm-api-key", default="",
+                        help="API key (or set ANTHROPIC_API_KEY / OPENAI_API_KEY env vars)")
     parser.add_argument("--max-crashes", type=int, default=10,
                         help="Max unique crashes to analyse (default: 10)")
     args = parser.parse_args()
@@ -121,24 +132,33 @@ Examples:
     print(f"[+] {len(crashes)} unique crash(es) after dedup\n")
 
     # ── Stage 4 & 5: Analyse + Patch ─────────────────────────────
-    llm_ok = not args.no_llm and is_ollama_available()
-    if not args.no_llm and not llm_ok:
-        print("[!] Ollama unreachable — skipping LLM analysis/patching\n")
+    provider = None
+    if not args.no_llm:
+        try:
+            provider = provider_from_args(args)
+            if provider and not provider.is_available():
+                print(f"[!] {provider} unreachable — skipping LLM (use --no-llm to suppress)\n")
+                provider = None
+            elif provider:
+                print(f"[+] LLM provider: {provider}\n")
+        except Exception as e:
+            print(f"[!] LLM setup failed: {e} — skipping\n")
+            provider = None
 
     findings: list[Finding] = []
     for crash in crashes:
         print(f"[*] Processing {crash.crash_id}: {crash.crash_type.value} @ {crash.top_frame}")
         finding = Finding(crash=crash)
 
-        if llm_ok:
-            print(f"    → Analysing with LLM...")
-            finding.analysis = analyze_crash(crash, str(target_dir))
+        if provider:
+            print(f"    → Analysing with {args.llm_provider}...")
+            finding.analysis = analyze_crash(crash, str(target_dir), provider)
             print(f"    → {finding.analysis.cwe_id} — {finding.analysis.vulnerability_type}")
 
             print(f"    → Generating patch...")
             patch_out = output_dir / "patches" / crash.crash_id
             finding.patch = generate_patch(
-                crash, finding.analysis, str(target_dir), str(patch_out)
+                crash, finding.analysis, str(target_dir), str(patch_out), provider
             )
             print(f"    → Patch validation: {finding.patch.validation.value}")
 
