@@ -81,13 +81,13 @@ targets/vulnerable_parser/main.c
 
 A deliberately vulnerable C file parser with three planted bugs:
 
-### VULN-1 — Stack Buffer Overflow (CWE-121)
+### VULN-1 — Heap Buffer Overflow (CWE-122)
 ```c
 void parse_name(char *dest, const char *src) {
     strcpy(dest, src);  // dest is 64 bytes, src can be 255 bytes
 }
 ```
-`fgets` reads up to 255 bytes into `line`. `parse_name` copies that into a 64-byte `Record.name` field with no bounds check. AFL finds this by mutating the name field past 64 bytes and triggering an ASan `stack-buffer-overflow` abort.
+`fgets` reads up to 255 bytes into `line`. `parse_name` copies that into a 64-byte `Record.name` field with no bounds check. `Record` is heap-allocated via `malloc`, so ASan reports `heap-buffer-overflow`. AFL finds this by mutating the name field past 64 bytes.
 
 ### VULN-2 — Format String (CWE-134)
 ```c

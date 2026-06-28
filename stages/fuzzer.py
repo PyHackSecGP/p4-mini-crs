@@ -16,14 +16,7 @@ def run_afl(
     """Run afl-fuzz for timeout_seconds. Returns stats dict."""
     out = Path(output_dir)
     crashes_dir = out / "default" / "crashes"
-    # Resume only if seed count matches what AFL already knows about;
-    # if new seeds were added, wipe and start fresh so they enter the queue.
-    queue_dir = out / "default" / "queue"
-    prior_seeds = len(list(queue_dir.glob("id:*"))) if queue_dir.exists() else 0
-    new_seeds = len(list(Path(seeds_dir).glob("*"))) if Path(seeds_dir).is_dir() else 0
-    resuming = (out / "default" / "fuzzer_stats").exists() and prior_seeds >= new_seeds
-    if not resuming:
-        shutil.rmtree(str(out), ignore_errors=True)
+    shutil.rmtree(str(out), ignore_errors=True)
     out.mkdir(parents=True, exist_ok=True)
 
     env = os.environ.copy()
@@ -33,7 +26,7 @@ def run_afl(
     env["AFL_AUTORESUME"] = "1"
     env.setdefault("AFL_MAP_SIZE", "65536")
 
-    afl_input = "-" if resuming else seeds_dir
+    afl_input = seeds_dir
     cmd = [
         "afl-fuzz",
         "-i", afl_input,

@@ -68,7 +68,7 @@ Open `output/vulnerable_parser_crs_report.html` in a browser.
 ## Demo Target
 
 `targets/vulnerable_parser/main.c` — deliberately vulnerable C file parser with:
-- **VULN-1:** Stack buffer overflow via `strcpy` (CWE-121)
+- **VULN-1:** Heap buffer overflow via `strcpy` into heap-allocated struct field (CWE-122)
 - **VULN-2:** Format string bug via `printf(user_input)` (CWE-134)
 - **VULN-3:** Integer overflow in allocation (CWE-190, fixed to let AFL reach deeper paths)
 

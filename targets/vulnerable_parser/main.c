@@ -15,8 +15,8 @@ typedef struct {
     int  value;
 } Record;
 
-/* VULN-1: Stack buffer overflow — dest has fixed 64-byte buffer,
-   no bounds check on src length. */
+/* VULN-1: Heap buffer overflow — dest is a 64-byte field in a heap-allocated
+   Record struct; strcpy has no bounds check on src length. */
 void parse_name(char *dest, const char *src) {
     strcpy(dest, src);  /* unsafe: no length check */
 }
@@ -51,7 +51,7 @@ int process_file(const char *path) {
         if (!fgets(line, sizeof(line), f)) break;
         line[strcspn(line, "\n")] = 0;
 
-        /* VULN-1 triggered here: line can be up to 255 bytes, name is 64 */
+        /* VULN-1 triggered here: line up to 255 bytes, name field is 64 bytes */
         parse_name(records[i].name, line);
 
         if (!fgets(line, sizeof(line), f)) break;
