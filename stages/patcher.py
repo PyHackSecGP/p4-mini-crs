@@ -43,6 +43,37 @@ Rules:
 Return only the unified diff. No markdown fences, no explanation."""
 
 
+def _fix_hunk_headers(diff: str) -> str:
+    """Recompute @@ line counts from actual diff content — LLMs often get these wrong."""
+    lines = diff.splitlines(keepends=True)
+    out: list[str] = []
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        if line.startswith("@@"):
+            # Collect hunk body until next hunk or EOF
+            hunk_body: list[str] = []
+            j = i + 1
+            while j < len(lines) and not lines[j].startswith("@@") and not lines[j].startswith("--- "):
+                hunk_body.append(lines[j])
+                j += 1
+            # Parse original start line from header
+            m = re.match(r"^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@(.*)", line.rstrip())
+            if m:
+                old_start, new_start, rest = m.group(1), m.group(2), m.group(3)
+                old_count = sum(1 for l in hunk_body if not l.startswith("+"))
+                new_count = sum(1 for l in hunk_body if not l.startswith("-"))
+                out.append(f"@@ -{old_start},{old_count} +{new_start},{new_count} @@{rest}\n")
+            else:
+                out.append(line)
+            out.extend(hunk_body)
+            i = j
+        else:
+            out.append(line)
+            i += 1
+    return "".join(out)
+
+
 def _apply_patch(diff: str, source_dir: str) -> tuple[bool, str]:
     with tempfile.NamedTemporaryFile(mode='w', suffix='.patch', delete=False) as f:
         f.write(diff)
@@ -110,6 +141,8 @@ def generate_patch(
     diff_match = re.search(r'(---\s+a/.*?\+\+\+\s+b/.*?(?=\Z))', diff, re.DOTALL)
     if diff_match:
         diff = diff_match.group(0).strip()
+
+    diff = _fix_hunk_headers(diff)
 
     backup = str(main_c) + ".orig"
     shutil.copy2(str(main_c), backup)
