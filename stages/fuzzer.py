@@ -16,7 +16,7 @@ def run_afl(
     """Run afl-fuzz for timeout_seconds. Returns stats dict."""
     out = Path(output_dir)
     crashes_dir = out / "default" / "crashes"
-    shutil.rmtree(str(out), ignore_errors=True)
+    resuming = (out / "default" / "fuzzer_stats").exists()
     out.mkdir(parents=True, exist_ok=True)
 
     env = os.environ.copy()
@@ -26,9 +26,11 @@ def run_afl(
     env["AFL_AUTORESUME"] = "1"
     env.setdefault("AFL_MAP_SIZE", "65536")
 
+    # Resume if prior session exists, otherwise start fresh
+    afl_input = "-" if resuming else seeds_dir
     cmd = [
         "afl-fuzz",
-        "-i", seeds_dir,
+        "-i", afl_input,
         "-o", str(out),
         "-m", "none",
         "--",
