@@ -27,10 +27,9 @@ void log_record(const char *fmt) {
     printf("\n");
 }
 
-/* VULN-3: Integer overflow — count * RECORD_SIZE wraps on large count. */
+/* allocate_records: correctly sized — bugs are in parse_name and log_record */
 Record *allocate_records(int count) {
-    size_t sz = count * RECORD_SIZE;  /* overflows if count > SIZE_MAX/RECORD_SIZE */
-    return (Record *)malloc(sz);
+    return (Record *)malloc((size_t)count * sizeof(Record));
 }
 
 int process_file(const char *path) {

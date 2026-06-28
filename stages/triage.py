@@ -17,14 +17,20 @@ quit
 """
 
 _ASAN_PATTERNS: list[tuple[re.Pattern, CrashType]] = [
-    (re.compile(r"stack-buffer-overflow",   re.I), CrashType.STACK_OVERFLOW),
-    (re.compile(r"heap-buffer-overflow",    re.I), CrashType.HEAP_OVERFLOW),
-    (re.compile(r"use-after-free",          re.I), CrashType.USE_AFTER_FREE),
-    (re.compile(r"heap-use-after-free",     re.I), CrashType.USE_AFTER_FREE),
-    (re.compile(r"format-string",           re.I), CrashType.FORMAT_STRING),
-    (re.compile(r"integer.*overflow",       re.I), CrashType.INTEGER_OVERFLOW),
-    (re.compile(r"null.*dereference|SEGV.*0x0", re.I), CrashType.NULL_DEREF),
+    (re.compile(r"stack-buffer-overflow",              re.I), CrashType.STACK_OVERFLOW),
+    (re.compile(r"heap-buffer-overflow",               re.I), CrashType.HEAP_OVERFLOW),
+    (re.compile(r"heap-use-after-free|use-after-free", re.I), CrashType.USE_AFTER_FREE),
+    (re.compile(r"format-string|interceptors_format",  re.I), CrashType.FORMAT_STRING),
+    (re.compile(r"integer.*overflow",                  re.I), CrashType.INTEGER_OVERFLOW),
+    (re.compile(r"null.*dereference|SEGV.*0x0",        re.I), CrashType.NULL_DEREF),
 ]
+
+# ASan/sanitizer internal frame prefixes to skip when finding real crash location
+_ASAN_INTERNAL = re.compile(
+    r"(__asan|__sanitizer|__interceptor|printf_common|CheckFailed|CheckUnwind|"
+    r"asan_rtl|asan_interceptor|_start|libc\.so|libpthread)",
+    re.I,
+)
 
 
 def _detect_crash_type(output: str) -> CrashType:
@@ -39,12 +45,22 @@ def _detect_crash_type(output: str) -> CrashType:
 
 
 def _stack_hash(backtrace: str) -> str:
-    """Hash top 5 frame function names for deduplication."""
-    frames = re.findall(r"#\d+\s+\S+\s+in\s+(\w+)", backtrace)[:5]
-    if not frames:
-        frames = re.findall(r"#\d+.*?(\w+)\s*\(", backtrace)[:5]
+    """Hash top 5 user-code frame function names for deduplication."""
+    all_frames = re.findall(r"#\d+\s+\S+\s+in\s+(\S+)", backtrace)
+    user_frames = [f for f in all_frames if not _ASAN_INTERNAL.search(f)][:5]
+    frames = user_frames if user_frames else all_frames[:5]
     key = "|".join(frames) if frames else backtrace[:200]
     return hashlib.sha1(key.encode()).hexdigest()[:12]
+
+
+def _top_user_frame(combined: str) -> str:
+    """Return first non-ASan-internal function name from backtrace."""
+    for match in re.finditer(r"in\s+(\S+)\s", combined):
+        fname = match.group(1)
+        if not _ASAN_INTERNAL.search(fname):
+            # Strip namespace/path separators
+            return fname.split("::")[-1].split("/")[-1]
+    return ""
 
 
 def _run_asan(binary: str, crash_file: str) -> str:
@@ -109,9 +125,7 @@ def triage_crashes(
 
         crash_type = _detect_crash_type(asan_out)
 
-        # Extract top frame
-        top_frame_match = re.search(r"#0\s+.*?in\s+(\w+)", combined)
-        top_frame = top_frame_match.group(1) if top_frame_match else ""
+        top_frame = _top_user_frame(combined)
 
         # Extract crash address
         addr_match = re.search(r"0x[0-9a-fA-F]{8,}", asan_out)
