@@ -60,7 +60,7 @@ Open `output/vulnerable_parser_crs_report.html` in a browser.
 
 | Flag | Backend | Auth |
 |---|---|---|
-| `--llm-provider ollama` | Local Ollama (default: `http://100.126.22.55:11434`) | None |
+| `--llm-provider ollama` | Local Ollama (default: `$OLLAMA_HOST` or `http://localhost:11434`) | None |
 | `--llm-provider claude` | Anthropic Messages API | `ANTHROPIC_API_KEY` env var or `--llm-api-key` |
 | `--llm-provider openai` | OpenAI Chat Completions | `OPENAI_API_KEY` env var or `--llm-api-key` |
 | `--llm-provider openai-compat` | Any OpenAI-compatible endpoint | `--llm-endpoint` + `--llm-api-key` |

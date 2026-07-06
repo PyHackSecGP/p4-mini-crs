@@ -37,8 +37,10 @@ class LLMProvider(ABC):
 class OllamaProvider(LLMProvider):
     name = "ollama"
 
-    def __init__(self, endpoint: str = "http://100.126.22.55:11434", model: str = "hermes3:70b"):
-        self.endpoint = endpoint.rstrip("/")
+    DEFAULT_ENDPOINT = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
+
+    def __init__(self, endpoint: str = "", model: str = "hermes3:70b"):
+        self.endpoint = (endpoint or self.DEFAULT_ENDPOINT).rstrip("/")
         self.model = model
 
     def generate(self, prompt: str, timeout: int = 180) -> str:
@@ -176,7 +178,7 @@ def get_provider(
 
     if p == "ollama":
         return OllamaProvider(
-            endpoint=endpoint or "http://100.126.22.55:11434",
+            endpoint=endpoint or OllamaProvider.DEFAULT_ENDPOINT,
             model=model or "hermes3:70b",
         )
 

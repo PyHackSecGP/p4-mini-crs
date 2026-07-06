@@ -58,7 +58,7 @@ Examples:
     parser.add_argument("--llm-model",   default="",
                         help="Model name override (e.g. claude-sonnet-4-6, gpt-4o, hermes3:70b)")
     parser.add_argument("--llm-endpoint", default="",
-                        help="API endpoint URL (ollama default: http://100.126.22.55:11434, "
+                        help="API endpoint URL (ollama default: $OLLAMA_HOST or http://localhost:11434, "
                              "required for openai-compat)")
     parser.add_argument("--llm-api-key", default="",
                         help="API key (or set ANTHROPIC_API_KEY / OPENAI_API_KEY env vars)")
