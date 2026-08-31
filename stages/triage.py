@@ -53,7 +53,7 @@ def _stack_hash(backtrace: str) -> str:
     user_frames = [f for f in all_frames if not _ASAN_INTERNAL.search(f)][:5]
     frames = user_frames if user_frames else all_frames[:5]
     key = "|".join(frames) if frames else backtrace[:200]
-    return hashlib.sha1(key.encode()).hexdigest()[:12]
+    return hashlib.sha1(key.encode(), usedforsecurity=False).hexdigest()[:12]
 
 
 def _top_user_frame(combined: str) -> str:

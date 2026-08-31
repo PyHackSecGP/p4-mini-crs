@@ -1,0 +1,17 @@
+# P4 suppressions — reviewed 2026-08-30
+# P4 is a crash response system (fuzzer/patcher/triage). subprocess calls on
+# controlled binaries (compiler, patch, gdb) are intentional and required.
+
+- rule_id: B404
+  reason: "subprocess import required — P4 drives compiler/fuzzer/patcher/gdb"
+
+- rule_id: B603
+  reason: "subprocess.run with list args (not shell=True) on controlled binaries — not user input"
+
+- rule_id: B607
+  file_glob: "stages/patcher.py"
+  reason: "patch(1) called by partial path — accepted risk, system tool"
+
+- rule_id: B607
+  file_glob: "stages/triage.py"
+  reason: "gdb called by partial path — accepted risk, system tool"
