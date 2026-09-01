@@ -1,213 +1,164 @@
-# P4 — Mini-CRS: Autonomous Vulnerability Discovery & Patch Suggestion
-
-**Role:** Security Engineer / Vulnerability Research portfolio project  
-**Stack:** Python 3.11 · AFL++ · AddressSanitizer · GDB · Ollama / Claude / OpenAI · SARIF 2.1.0
+# P4 — Mini-CRS: Interview Prep Notes
 
 ---
 
-## Why I Built This Instead of Using an Existing Tool
+## 30-Second Pitch (memorise this)
 
-**Mayhem** (ForAllSecure), **Fuzzbuzz**, and **CodeSentry** are commercial tools that do automated vulnerability discovery. They cost tens to hundreds of thousands of dollars per year. I didn't build this to compete with them — I built it to understand exactly what they're doing, so that when I'm evaluating one for a security program, or triaging a finding it generated, I know what's actually happening.
-
-Specifically, I needed to understand at a hands-on level:
-
-- How AFL++ instrumentation works — how coverage-guided fuzzing differs from random input generation, and why that matters for finding real vulnerabilities
-- What AddressSanitizer actually reports and how to parse it programmatically — not just read it in a terminal
-- How GDB batch mode can automate backtrace collection — a technique I'd use when triaging a crash corpus at scale
-- Where LLMs add genuine value in a vulnerability pipeline vs. where they hallucinate and break things
-- What SARIF 2.1.0 requires for GitHub Security tab integration — this matters when you're setting up a security pipeline for a team
-
-I can now look at output from any of those commercial tools and immediately understand what the fuzzer found, why the triage classified it that way, and whether the severity is calibrated correctly. That's the competence this project was built to develop.
+"I built an automated vulnerability discovery pipeline inspired by DARPA AIxCC. It takes C source code, fuzzes it with AFL++ to crash it thousands of times per second, triages each crash with AddressSanitizer and GDB, uses an LLM to identify the root cause and CWE, generates a patch as a unified diff, validates the patch against the original crash, and produces an HTML report plus SARIF output for the GitHub Security tab. End-to-end, no human in the loop."
 
 ---
 
-## What It Does
+## Q: What is fuzzing? Why AFL++?
 
-Point it at a directory of C source code. Come back to a full vulnerability report.
+Fuzzing is running a program with millions of mutated inputs until it crashes. The key is *what* inputs to generate.
 
-```
-Target C source
-      ↓
-  builder.py       Compile with AFL++ instrumentation + AddressSanitizer
-      ↓
-  fuzzer.py        afl-fuzz → crash corpus
-      ↓
-  triage.py        ASan output + GDB backtrace + stack-hash deduplication
-      ↓
-  analyzer.py      LLM → CWE classification + root cause + attack scenario (JSON)
-      ↓
-  patcher.py       LLM → unified diff → apply → recompile → verify against crash input
-      ↓
-  reporter.py      Executive HTML report + JSON export + SARIF 2.1.0
-```
+AFL++ uses **coverage-guided fuzzing** — it instruments the binary at compile time to track which code paths each input exercises. When a mutated input reaches a new code path, AFL saves it as a seed for further mutation. This is dramatically more effective than random inputs because it systematically explores the program's state space.
 
-No human touches it between "start" and "report."
+Random fuzzing might only test the "happy path" — AFL works its way into deep error handling, edge cases, and rarely-executed code paths where bugs live.
 
 ---
 
-## Concrete Scenario: C Network Parser Audit
+## Q: Walk me through the pipeline stages.
 
-A security team is auditing a C-based network packet parser before it goes into a critical infrastructure deployment. The parser has 4,000 lines of code, written 8 years ago, no existing test suite.
+**1. Build** — Two binaries compiled from same source:
+- `afl-clang-fast` binary: AFL instrumentation for coverage tracking
+- `clang + ASan` binary: AddressSanitizer enabled, used to get detailed crash reports
 
-```bash
-python crs.py --target /path/to/packet-parser --fuzz-time 300 --output output/
-```
+**2. Fuzz** — `afl-fuzz` runs against the instrumented binary with seed inputs. Crashes saved to corpus.
 
-**Five minutes later:**
-```
-[+] Fuzzing done: 18 crash files found
+**3. Triage** — For each crash file:
+1. Run ASan binary with the crash input → get memory error report
+2. Run `gdb --batch -ex "run < $crash" -ex "bt"` → get backtrace
+3. Hash the top N user-space frames → deduplicate to unique bugs
+4. Pattern-match ASan output → classify crash type
 
-[*] Processing crash-001: Heap Buffer Overflow @ parse_header
-    → CWE-122 — Heap-based Buffer Overflow
-    → Root cause: strcpy into fixed-size heap buffer without length check
-    → Attack scenario: Malformed packet with oversized header field triggers
-       heap corruption — potential remote code execution
-    → Patch generated and validated ✓
+**4. Analyze** — LLM receives: ASan output + GDB backtrace + source context. Returns JSON with CWE, root cause, attack scenario, severity, fix approach.
 
-[*] Processing crash-002: Format String @ log_packet
-    → CWE-134 — Externally-Controlled Format String
-    → Root cause: printf(user_controlled_string) — no format argument
-    → Patch generated ✓
+**5. Patch** — LLM generates unified diff. Applied, recompiled, run original crash input against patched binary. Pass = fixed, fail = patch included anyway for manual review.
 
-══════════════════════════════════
-  Crashes found    : 18
-  Unique crashes   : 2
-  Patches generated: 2
-  Patches verified : 2
-  HTML report      : output/packet-parser_crs_report.html
-  SARIF export     : output/packet-parser_crs_report.sarif
-```
-
-Two real vulnerabilities (heap overflow, format string), root cause analysis, working patches, and a SARIF file that uploads directly to the GitHub Security tab — in 5 minutes, with zero human analysis in the loop.
-
-The team now has a concrete, prioritised list before a single human reviews the code. The LLM explains each finding in terms an executive can understand and a developer can act on.
+**6. Report** — HTML + JSON + SARIF 2.1.0
 
 ---
 
-## The AFL++ + ASan + GDB Pipeline — What I Had to Learn
+## Q: What is AddressSanitizer? What does it tell you?
 
-**Stage 1 — Build**
+ASan is a compiler instrumentation tool (LLVM/Clang) that detects memory errors at runtime:
+- Heap buffer overflows
+- Stack buffer overflows  
+- Use-after-free
+- Use-after-return
+- Double-free
 
-Two binaries are compiled from the same source:
-- `afl-clang-fast` instrument binary — coverage-guided; AFL tracks which code paths each input exercises
-- `clang + ASan` binary — runs crashes to get detailed memory error reports
+When a crash happens, ASan prints a detailed report: error type, crash address, memory layout at the time of crash, allocation/deallocation stack traces. That's what the triage stage parses to classify the bug.
 
-Building this taught me how compiler instrumentation works at the binary level, and why fuzzing without coverage guidance is dramatically less effective at finding deep code paths.
-
-**Stage 2 — Fuzz**
-
-AFL++ runs `afl-fuzz` against the instrumented binary with a seed corpus. It mutates inputs, tracks new coverage, and saves inputs that reach new code. Every crashing input goes to the crash directory.
-
-The key insight AFL++ uses: inputs that increase code coverage are more valuable than random mutations. This is why AFL finds bugs that manual testing misses — it systematically explores the state space.
-
-**Stage 3 — Triage**
-
-Raw crash files from AFL aren't usable directly — there may be 100 crashes caused by 2 underlying bugs. The triage stage:
-
-1. Runs each crash through the ASan binary to get the memory error report
-2. Runs GDB in batch mode (`gdb --batch -ex "run < $crash" -ex "bt"`) to get a backtrace
-3. Hashes the top N user-space frames to deduplicate crashes to unique bugs
-4. Classifies crash type (heap overflow vs. stack overflow vs. format string vs. UAF) by pattern-matching ASan output
-
-This deduplication logic is the same thing commercial triage tools do. Understanding it means I can evaluate whether a triage system is over-reporting (too few deduplications) or under-reporting (merging distinct bugs).
-
-**Stage 4 — LLM Analysis**
-
-The LLM receives the ASan output, GDB backtrace, and relevant source context. It returns structured JSON:
-
-```json
-{
-  "cwe_id": "CWE-122",
-  "cwe_name": "Heap-based Buffer Overflow",
-  "vulnerable_function": "parse_header",
-  "vulnerable_lines": "main.c:147",
-  "root_cause": "strcpy copies user-supplied header into fixed 256-byte heap buffer...",
-  "attack_scenario": "Remote attacker sends packet with header field > 256 bytes...",
-  "severity": "Critical",
-  "exploitability": "High",
-  "fix_approach": "Replace strcpy with strlcpy(buf, input, sizeof(buf))"
-}
-```
-
-The LLM is used only for *explanation* — not for crash detection, which is deterministic. This is the correct role for LLMs in security tooling: they improve the quality of human-readable output, not the reliability of detection.
-
-**Stage 5 — Patch + Validate**
-
-The LLM generates a unified diff. The patcher applies it, recompiles, and runs the original crash input against the patched binary. If it no longer crashes, validation passes. If it does crash, the patch is marked as failed and the diff is still included in the report for manual review.
-
-This validate-on-the-crash-input approach is sound because it tests the exact input that triggered the original bug — not a new test case that might miss a variant.
+Without ASan, a crash just gives you a segfault signal and a core dump. With ASan you know exactly what kind of memory error it was and where.
 
 ---
 
-## SARIF 2.1.0 — Why It Matters
+## Q: How does crash deduplication work?
 
-The SARIF exporter (`stages/sarif_exporter.py`) outputs results in the format GitHub, GitLab, and DefectDojo all consume natively.
+AFL might generate 100 crash inputs for 2 underlying bugs. Without dedup you'd analyse 100 crashes.
 
-What a SARIF result contains:
-- Rule ID and CWE mapping
-- Source file and line number (extracted from ASan output)
+The dedup method:
+1. Get GDB backtrace for each crash
+2. Filter out ASan-internal frames (those start with `asan::`, `__sanitizer`, etc.)
+3. Take the top 4 user-space frames
+4. SHA1 hash them → stack hash
+
+Same stack hash = same bug. Only unique hashes get analysed.
+
+This is the same approach commercial tools like Mayhem use. The tradeoff: it can under-deduplicate if the same bug manifests with slightly different call stacks, or over-deduplicate if two different bugs happen to crash through the same code path.
+
+---
+
+## Q: What CWEs does it detect?
+
+Depends on what AFL finds, but the classifier handles:
+- CWE-122 — Heap Buffer Overflow (ASan: "heap-buffer-overflow")
+- CWE-121 — Stack Buffer Overflow (ASan: "stack-buffer-overflow")  
+- CWE-134 — Format String (ASan: signal SIGSEGV on printf-family)
+- CWE-416 — Use After Free (ASan: "heap-use-after-free")
+- CWE-476 — Null Dereference (ASan: signal on null address)
+- CWE-190 — Integer Overflow (inferred from allocation patterns)
+
+---
+
+## Q: What is SARIF? Why does it matter?
+
+SARIF (Static Analysis Results Interchange Format) is a JSON standard (v2.1.0) for security tool output. GitHub, GitLab, DefectDojo, and most SAST dashboards consume it natively.
+
+What it contains per finding:
+- Rule ID (e.g. `mini-crs/CWE-122`)
 - Severity level
-- Stack hash fingerprint for deduplication across runs
-- Fix suggestions from generated patches
-- Exploitability metadata
+- Source file + line number
+- Stack hash fingerprint (deduplication across runs)
+- Fix suggestions
+- CWE link and help text
 
-In a real security program, this means fuzzing results flow directly into the vulnerability management pipeline without manual transcription. The SARIF file from CI uploads to GitHub Security tab on every push via `github/codeql-action/upload-sarif`.
-
----
-
-## LLM Provider Design
-
-The tool works with any LLM:
-
-```bash
-# On-prem Ollama (default — no data leaves the network)
-python crs.py --target ... --llm-provider ollama --llm-model hermes3:70b
-
-# Anthropic Claude
-python crs.py --target ... --llm-provider claude --llm-model claude-sonnet-4-6
-
-# Any OpenAI-compatible endpoint
-python crs.py --target ... --llm-provider openai-compat \
-  --llm-endpoint http://localhost:8000 --llm-model my-model
-```
-
-The pluggable provider design means the same pipeline runs in an air-gapped environment (Ollama), in a cloud CI pipeline (Claude/OpenAI), or against a self-hosted model server. This is the architecture decision I'd make for any production security tool — never hard-code a specific LLM vendor.
+Why it matters: without SARIF, fuzzing results live in a separate report nobody checks. With SARIF, they upload to GitHub Security tab on every CI run via `github/codeql-action/upload-sarif`. Security findings land in the same workflow as code review.
 
 ---
 
-## Quick Start
+## Q: Why use an LLM for the analysis? Doesn't it hallucinate?
 
-```bash
-# Requirements: afl++, gdb (usually pre-installed on Kali)
-sudo apt-get install -y afl++ gdb
+The LLM is used *only for explanation*, not detection. The crash is real — AFL found it, ASan confirmed it, GDB backtraced it. Those are deterministic. The LLM reads that evidence and explains it in language a developer or exec can act on.
 
-git clone https://git.greenbladesec.com/gpsingh/p4-mini-crs
-cd p4-mini-crs
-pip install -r requirements.txt
+The LLM can hallucinate the fix approach or misname the CWE. That's fine — the patch is validated against the actual crash input before being marked as verified. If the patch doesn't fix the crash, it's flagged as FAILED and included for manual review anyway.
 
-# Full pipeline on built-in demo target (60s fuzzing, local Ollama)
-python crs.py --target targets/vulnerable_parser --fuzz-time 60 --output output/
-
-# No LLM — rule-based triage only
-python crs.py --target targets/vulnerable_parser --no-llm --fuzz-time 60
-
-# Use existing crash corpus, skip fuzzing
-python crs.py --target targets/vulnerable_parser --no-fuzz \
-  --crashes output/afl_output/default/crashes/
-```
-
-Open `output/vulnerable_parser_crs_report.html` in a browser.
+Deterministic tools detect. LLMs explain. That's the right split.
 
 ---
 
-## Demo Target
+## Q: What's the difference between the AFL binary and the ASan binary?
 
-`targets/vulnerable_parser/main.c` — deliberately vulnerable C parser with:
+**AFL binary** (`afl-clang-fast`):
+- Instrumented for coverage tracking
+- Runs fast — AFL may run millions of executions
+- Doesn't give detailed crash info, just detects crashes
 
-| Vulnerability | CWE | Type |
-|---|---|---|
-| `strcpy` into heap-allocated struct field | CWE-122 | Heap buffer overflow |
-| `printf(user_input)` without format specifier | CWE-134 | Format string |
-| Integer overflow in `malloc` size calculation | CWE-190 | Integer overflow |
+**ASan binary** (`clang + ASan`):
+- Runtime memory checking — much slower
+- Gives full memory error report when a crash is triggered
+- Used *after* AFL finds crash inputs, to analyse each one
 
-These match the most common vulnerability classes in real C/C++ codebases. AFL++ reliably finds all three within 60 seconds of fuzzing.
+You can combine them but the performance hit makes fuzzing impractical. So AFL finds the crashes, ASan analyses them. Same pattern used by OSS-Fuzz.
+
+---
+
+## Q: How does patch validation work?
+
+1. LLM generates a unified diff
+2. `patch` applies it to the source
+3. Recompile with ASan
+4. Run original crash input against patched binary
+5. If it exits cleanly → FIXED. If it crashes → FAILED.
+
+The key: validating against the *exact crash input* that triggered the original bug. Not a new test — the same bytes that caused the original crash. This catches cases where the patch fixes the specific input but leaves the underlying bug exploitable by a slightly different input.
+
+---
+
+## Key technical facts to have ready
+
+- **Fuzzer**: AFL++ (coverage-guided, predecessor to AFL, actively maintained)
+- **Memory checker**: AddressSanitizer (LLVM, built into Clang/GCC)
+- **Debugger**: GDB batch mode for automated backtrace collection
+- **LLM**: Ollama (local default), Claude, OpenAI, any OpenAI-compat endpoint
+- **Output formats**: HTML, JSON, SARIF 2.1.0
+- **CI**: GitHub Actions — fuzzes on push, uploads SARIF to Security tab
+- **Commercial equivalents**: Mayhem (ForAllSecure), Fuzzbuzz, CodeSentry, OSS-Fuzz (Google, free for open source)
+- **Demo target bugs**: CWE-122 (heap overflow via strcpy), CWE-134 (format string via printf), CWE-190 (integer overflow)
+
+---
+
+## Q: What would you improve?
+
+- **Python/Go target support** — current pipeline is C-only (AFL++ has coverage support for other languages, but ASan is C/C++ specific — would need different memory checkers like Valgrind or Python's tracemalloc)
+- **Seed generation from source** — currently needs manual seeds; could use LLM to generate structured seeds from function signatures
+- **Second target** — the demo target is simple; adding a more realistic target (network parser, file format parser) would make the demo more compelling
+- **Libfuzzer integration** — alternative to AFL++, required for some environments; same pipeline structure, different fuzzer backend
+
+---
+
+## What I'd say if asked "what was the hardest part?"
+
+The deduplication and triage logic. AFL generates a lot of crashes — sometimes 50+ for a single bug because different input permutations reach the same bad code through slightly different paths. Getting the stack-hashing right (filtering ASan internals, taking the right number of user-space frames, handling cases where the backtrace is empty or truncated) required running the pipeline against dozens of crash inputs and comparing results manually to validate the dedup was correct.
