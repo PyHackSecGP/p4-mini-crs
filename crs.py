@@ -19,6 +19,7 @@ from stages.triage import triage_crashes
 from stages.analyzer import analyze_crash
 from stages.patcher import generate_patch
 from stages.reporter import generate_html
+from stages.sarif_exporter import generate_sarif
 from engine.llm_provider import provider_from_args, get_provider
 
 
@@ -188,6 +189,9 @@ Examples:
     import dataclasses
     json_path.write_text(json.dumps(dataclasses.asdict(result), indent=2, default=str))
 
+    sarif_path = output_dir / f"{target_name}_crs_report.sarif"
+    generate_sarif(result, str(sarif_path))
+
     print(f"\n{'='*60}")
     print(f"  Results")
     print(f"{'='*60}")
@@ -197,6 +201,7 @@ Examples:
     print(f"  Patches verified : {result.fixed_count}")
     print(f"  HTML report      : {report_path}")
     print(f"  JSON export      : {json_path}")
+    print(f"  SARIF export     : {sarif_path}")
     print(f"{'='*60}\n")
 
     print("── Top Findings ────────────────────────────────────")

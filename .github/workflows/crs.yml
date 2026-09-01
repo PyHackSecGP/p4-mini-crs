@@ -1,0 +1,80 @@
+name: Mini-CRS
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'targets/**'
+      - 'stages/**'
+      - 'engine/**'
+      - 'crs.py'
+      - 'models.py'
+  pull_request:
+    paths:
+      - 'targets/**'
+      - 'stages/**'
+      - 'engine/**'
+  workflow_dispatch:
+    inputs:
+      fuzz_time:
+        description: 'Fuzzing duration in seconds'
+        required: false
+        default: '30'
+
+jobs:
+  crs-run:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write  # required for SARIF upload
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq afl++ gdb
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run CRS on demo target (no LLM)
+        run: |
+          python crs.py \
+            --target targets/vulnerable_parser \
+            --no-llm \
+            --fuzz-time ${{ github.event.inputs.fuzz_time || '30' }} \
+            --output output/
+
+      - name: Upload HTML report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: crs-html-report
+          path: output/*.html
+          retention-days: 30
+
+      - name: Upload SARIF to GitHub Security tab
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: output/vulnerable_parser_crs_report.sarif
+          category: mini-crs
+        continue-on-error: true
+
+      - name: Upload all outputs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: crs-outputs
+          path: |
+            output/*.html
+            output/*.json
+            output/*.sarif
+          retention-days: 30
