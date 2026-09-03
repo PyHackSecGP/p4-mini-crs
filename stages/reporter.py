@@ -6,7 +6,6 @@ from models import CRSResult, ValidationResult
 _SEV_COLOR = {"Critical": "#ff4444", "High": "#ff8800", "Medium": "#ffcc00", "Low": "#44bb44"}
 _VAL_COLOR = {
     ValidationResult.FIXED:   ("#44bb44", "✓ FIXED"),
-    ValidationResult.PARTIAL: ("#ffcc00", "~ PARTIAL"),
     ValidationResult.FAILED:  ("#ff4444", "✗ FAILED"),
     ValidationResult.SKIPPED: ("#888888", "— SKIPPED"),
 }

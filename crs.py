@@ -206,7 +206,7 @@ Examples:
 
     print("── Top Findings ────────────────────────────────────")
     for f in findings:
-        val_sym = {"Fixed": "✓", "Partial": "~", "Failed": "✗", "Skipped": "—"}.get(f.patch.validation.value, "—")
+        val_sym = {"Fixed": "✓", "Failed": "✗", "Skipped": "—"}.get(f.patch.validation.value, "—")
         cwe = f.analysis.cwe_id or "CWE-?"
         print(f"  [{val_sym}] {f.crash.crash_id} {cwe:10} {f.crash.crash_type.value}")
 

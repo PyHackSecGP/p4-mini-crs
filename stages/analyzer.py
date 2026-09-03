@@ -71,12 +71,13 @@ def analyze_crash(crash: CrashInfo, source_dir: str, provider: LLMProvider) -> A
     except Exception as e:
         return Analysis(raw_response=f"LLM error: {e}")
 
-    json_match = re.search(r'\{[^{}]*\}', raw, re.DOTALL)
-    if not json_match:
+    start = raw.find('{')
+    end = raw.rfind('}')
+    if start == -1 or end == -1 or end <= start:
         return Analysis(raw_response=raw)
 
     try:
-        data = json.loads(json_match.group(0))
+        data = json.loads(raw[start:end + 1])
     except json.JSONDecodeError:
         return Analysis(raw_response=raw)
 

@@ -1,6 +1,7 @@
 """Export CRS findings as SARIF 2.1.0 for GitHub Security tab / DefectDojo import."""
 from __future__ import annotations
 import json
+import re
 from pathlib import Path
 from models import CRSResult, ValidationResult
 
@@ -62,8 +63,6 @@ def _build_rule(finding) -> dict:
 def _parse_vulnerable_line(analysis) -> tuple[str, int]:
     """Extract (filename, line_number) from Analysis.vulnerable_lines field."""
     raw = analysis.vulnerable_lines or ""
-    # Common patterns: "main.c:42", "42", "line 42", "src/main.c:42-45"
-    import re
     m = re.search(r'([a-zA-Z0-9_./]+\.c)[\s:]+(\d+)', raw)
     if m:
         return m.group(1), int(m.group(2))

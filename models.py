@@ -16,7 +16,6 @@ class CrashType(str, Enum):
 
 class ValidationResult(str, Enum):
     FIXED    = "Fixed"
-    PARTIAL  = "Partial"
     FAILED   = "Failed"
     SKIPPED  = "Skipped"
 

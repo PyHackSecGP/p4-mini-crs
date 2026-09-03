@@ -8,14 +8,6 @@ from pathlib import Path
 from models import CrashInfo, CrashType
 
 
-_GDB_SCRIPT = """set pagination off
-set print thread-events off
-run {input_file}
-bt
-info registers
-quit
-"""
-
 _ASAN_PATTERNS: list[tuple[re.Pattern, CrashType]] = [
     (re.compile(r"stack-buffer-overflow",              re.I), CrashType.STACK_OVERFLOW),
     (re.compile(r"heap-buffer-overflow",               re.I), CrashType.HEAP_OVERFLOW),
