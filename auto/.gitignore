@@ -1,0 +1,7 @@
+.env
+jobq.db
+jobq.db-journal
+state.json
+state.tmp
+logs/
+__pycache__/

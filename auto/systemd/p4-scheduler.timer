@@ -1,0 +1,10 @@
+[Unit]
+Description=Run P4 Mini-CRS scheduler daily at 03:00
+
+[Timer]
+OnCalendar=*-*-* 03:00:00
+Persistent=true
+Unit=p4-scheduler.service
+
+[Install]
+WantedBy=timers.target

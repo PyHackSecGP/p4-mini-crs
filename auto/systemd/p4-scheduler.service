@@ -1,0 +1,12 @@
+[Unit]
+Description=P4 Mini-CRS auto-pipeline scheduler (watchlist + GitHub poll)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/projects/p4-mini-crs
+EnvironmentFile=%h/projects/p4-mini-crs/auto/.env
+ExecStart=/bin/bash -c 'source venv/bin/activate 2>/dev/null; exec python3 auto/scheduler.py'
+StandardOutput=append:%h/projects/p4-mini-crs/auto/logs/scheduler.log
+StandardError=append:%h/projects/p4-mini-crs/auto/logs/scheduler.log

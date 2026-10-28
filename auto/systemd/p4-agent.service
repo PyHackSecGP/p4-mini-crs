@@ -1,0 +1,17 @@
+[Unit]
+Description=P4 Mini-CRS auto-pipeline agent daemon
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/projects/p4-mini-crs
+EnvironmentFile=%h/projects/p4-mini-crs/auto/.env
+ExecStart=/bin/bash -c 'source venv/bin/activate 2>/dev/null; exec python3 auto/agent.py'
+Restart=on-failure
+RestartSec=15s
+StandardOutput=append:%h/projects/p4-mini-crs/auto/logs/agent.log
+StandardError=append:%h/projects/p4-mini-crs/auto/logs/agent.log
+
+[Install]
+WantedBy=default.target

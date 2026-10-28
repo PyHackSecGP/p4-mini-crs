@@ -1,0 +1,21 @@
+# P4 Mini-CRS auto-pipeline targets.
+#
+# Two source types:
+#   watchlist   — local C source directories; agent scans each on cron + inotify
+#   github      — GitHub repos; scheduler polls default branch for new commits
+#
+# Add targets by editing this file. Watcher reloads on save.
+
+watchlist:
+  - path: ~/projects/p4-mini-crs/targets/vulnerable_parser
+    fuzz_time: 60
+    enabled: true
+
+# GitHub repos: scheduler clones to /tmp/p4-auto/<slug>/ then enqueues.
+# last_sha is maintained by scheduler.py — do not hand-edit.
+github_repos: []
+#  - repo: PyHackSecGP/some-c-project
+#    branch: main
+#    fuzz_time: 300
+#    enabled: true
+#    last_sha: null
