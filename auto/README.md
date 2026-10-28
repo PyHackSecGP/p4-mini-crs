@@ -15,7 +15,8 @@ auto/
 ├── runner.sh          # crs.py wrapper, emits JSON summary
 ├── notify.py          # Telegram alert dispatch
 ├── agent.py           # worker daemon (Claude Agent SDK, Haiku 4.5)
-├── scheduler.py       # cron producer (watchlist + github poll)
+├── scheduler.py       # cron producer (watchlist + github poll + CVE match)
+├── cve_poller.py      # CISA KEV + NVD recent CVE feeds
 ├── watcher.py         # inotify producer (watchlist dirs)
 ├── dashboard.py       # Flask dashboard (localhost:5557)
 ├── templates/         # Jinja templates for dashboard
@@ -95,6 +96,25 @@ repo-write scope on the target repos. Labels `security`, `p4-crs`, and
 - [x] Phase 2: cron scheduler (daily 03:00) + inotify watcher + systemd timer/service units
 - [x] Phase 3: expanded SARIF rubric + prior-findings injection + stack-hash dedup + `file_github_issue` tool for gh-sourced CRITICAL findings
 - [x] Phase 4: Flask dashboard (localhost:5557) — queue stats, severity histogram, per-target history, manual trigger form
+- [x] Phase 5a: CVE/NVD-driven priority enqueue — scheduler polls CISA KEV + NVD recent (7d), matches against watched github_repos, enqueues with elevated fuzz_time, dedup via state.json
+
+## CVE matching
+
+Scheduler pulls:
+- **CISA KEV catalog** (known-exploited vulns, ~1700 entries, treated as CRITICAL)
+- **NVD CVE API 2.0** last 7 days (configurable via `scheduler.py --nvd-days N`;
+  set `NVD_API_KEY` env for higher rate limits)
+
+Match heuristic: lowercased repo-slug product name (`openssl/openssl` → `openssl`)
+substring-matched against the CVE's `vendor` + `product` fields. Coarse by design —
+false positives are OK because the pipeline re-fuzzes real crashes; the CVE match is
+just a trigger signal. Skips products with slug name < 4 chars (too generic).
+
+On match: clone (if not already cached), enqueue with `source=scheduler_cve:<cve_id>`
+and `fuzz_time = 2× repo.fuzz_time` (capped 600s). Each (cve_id, repo) pair recorded
+in `state.json → cve_seen` so re-runs don't re-enqueue.
+
+Skip CVE poll per-run with `scheduler.py --skip-cve` (useful for fast local tests).
 
 ## Dashboard
 

@@ -124,14 +124,64 @@ def enqueue_github(entries: list[dict], state: dict) -> int:
     return n
 
 
+def enqueue_cve_matches(github_repos: list[dict], state: dict,
+                        nvd_days: int = 7) -> int:
+    """Pull KEV + recent NVD, match against enabled github_repos, enqueue new matches.
+
+    Dedup: skip (cve_id, repo) pairs already recorded in state['cve_seen'].
+    Elevated fuzz_time (default 2x entry.fuzz_time, capped 600s).
+    """
+    import cve_poller
+    seen = set(state.setdefault("cve_seen", []))
+    n = 0
+    try:
+        kev = cve_poller.fetch_kev()
+    except Exception as e:
+        print(f"scheduler: KEV fetch failed: {e}", flush=True)
+        kev = []
+    try:
+        nvd = cve_poller.fetch_nvd_recent(nvd_days)
+    except Exception as e:
+        print(f"scheduler: NVD fetch failed: {e}", flush=True)
+        nvd = []
+    all_cves = kev + nvd
+    print(f"scheduler: cve feeds — KEV={len(kev)} NVD({nvd_days}d)={len(nvd)}", flush=True)
+
+    for match in cve_poller.match_targets(all_cves, github_repos):
+        repo = match["repo"]
+        cve = match["cve"]
+        key = f"{cve['cve_id']}|{repo['repo']}"
+        if key in seen:
+            continue
+        seen.add(key)
+        slug = repo["repo"].replace("/", "__")
+        dest = GH_CLONE_DIR / slug
+        if not dest.exists():
+            branch = repo.get("branch", "main")
+            if not clone_repo(repo["repo"], branch, dest):
+                continue
+        fuzz_time = min(repo.get("fuzz_time", 300) * 2, 600)
+        jid = jobq.enqueue(str(dest), source=f"scheduler_cve:{cve['cve_id']}",
+                           fuzz_time=fuzz_time)
+        print(f"scheduler: cve {cve['cve_id']} [{cve['source']}/{cve['severity_hint']}] "
+              f"→ {repo['repo']} → {jid[:8]} ({fuzz_time}s)", flush=True)
+        n += 1
+
+    state["cve_seen"] = sorted(seen)
+    return n
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--dry-run", action="store_true",
                     help="Print what would be enqueued without touching the queue.")
+    ap.add_argument("--skip-cve", action="store_true",
+                    help="Skip CVE/NVD poll (useful for fast local runs).")
+    ap.add_argument("--nvd-days", type=int, default=7,
+                    help="How many days of NVD history to pull.")
     args = ap.parse_args()
 
     if args.dry_run:
-        # Monkey-patch enqueue to log only
         orig = jobq.enqueue
         jobq.enqueue = lambda target, source, fuzz_time=60: (
             print(f"[dry-run] would enqueue {target} ({source}, {fuzz_time}s)"),
@@ -144,10 +194,13 @@ def main() -> None:
 
     n_watch = enqueue_watchlist(targets.get("watchlist", []) or [], state)
     n_gh = enqueue_github(targets.get("github_repos", []) or [], state)
+    n_cve = 0 if args.skip_cve else enqueue_cve_matches(
+        targets.get("github_repos", []) or [], state, args.nvd_days
+    )
 
     if not args.dry_run:
         save_state(state)
-    print(f"scheduler: done. watchlist={n_watch} github={n_gh}", flush=True)
+    print(f"scheduler: done. watchlist={n_watch} github={n_gh} cve={n_cve}", flush=True)
 
 
 if __name__ == "__main__":
