@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Findings — P4 Mini-CRS{% endblock %}
+{% block content %}
+
+<h2>Findings (CRITICAL / HIGH / MEDIUM)</h2>
+<p class="muted">All actionable findings across all targets, newest first. LOW/NONE excluded.</p>
+<table>
+  <tr><th>Severity</th><th>Target</th><th>Action</th><th>Stack hash</th><th>SARIF</th><th>Finished</th></tr>
+  {% for f in findings %}
+  <tr>
+    <td><span class="sev {{ sev_class(f.severity) }}">{{ f.severity }}</span></td>
+    <td><a href="{{ url_for('target', target=f.target.lstrip('/')) }}"><code>{{ f.target.split('/')[-1] }}</code></a></td>
+    <td class="mono">{{ f.action }}</td>
+    <td class="mono">{{ f.stack_hash or '—' }}</td>
+    <td class="mono muted">{{ (f.sarif_path or '')|truncate(50, True) }}</td>
+    <td class="mono muted">{{ f.finished_at }}</td>
+  </tr>
+  {% else %}
+  <tr><td colspan="6" class="muted">No findings yet.</td></tr>
+  {% endfor %}
+</table>
+
+{% endblock %}

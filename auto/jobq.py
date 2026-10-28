@@ -138,6 +138,60 @@ def prior_findings(target: str, limit: int = 20) -> list[dict]:
     return [dict(r) for r in rows]
 
 
+def counts_by_status() -> dict[str, int]:
+    """Count jobs grouped by status. Dashboard overview."""
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT status, COUNT(*) as n FROM jobs GROUP BY status"
+        ).fetchall()
+    return {r["status"]: r["n"] for r in rows}
+
+
+def counts_by_severity() -> dict[str, int]:
+    """Count done jobs grouped by severity."""
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT COALESCE(severity, 'UNKNOWN') as severity, COUNT(*) as n "
+            "FROM jobs WHERE status='done' GROUP BY severity"
+        ).fetchall()
+    return {r["severity"]: r["n"] for r in rows}
+
+
+def find_by_target(target: str, limit: int = 50) -> list[dict]:
+    """All jobs for a target, newest first."""
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM jobs WHERE target=? ORDER BY created_at DESC LIMIT ?",
+            (target, limit),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def distinct_targets() -> list[dict]:
+    """Each target w/ job count + latest status + severity."""
+    with _conn() as conn:
+        rows = conn.execute(
+            """SELECT target, COUNT(*) as n_jobs,
+                      MAX(created_at) as last_seen,
+                      (SELECT severity FROM jobs j2 WHERE j2.target=jobs.target
+                       AND j2.status='done' ORDER BY finished_at DESC LIMIT 1) as last_severity
+               FROM jobs GROUP BY target ORDER BY last_seen DESC"""
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def critical_findings(limit: int = 100) -> list[dict]:
+    """Done jobs with severity CRITICAL/HIGH/MEDIUM, newest first."""
+    with _conn() as conn:
+        rows = conn.execute(
+            """SELECT * FROM jobs WHERE status='done'
+               AND severity IN ('CRITICAL','HIGH','MEDIUM')
+               ORDER BY finished_at DESC LIMIT ?""",
+            (limit,),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
 def list_jobs(limit: int = 50) -> list[dict]:
     with _conn() as conn:
         rows = conn.execute(

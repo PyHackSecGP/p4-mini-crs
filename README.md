@@ -255,4 +255,5 @@ python -m pytest tests/ -v
 | Auto Phase 1 — queue + runner + Haiku agent + Telegram + systemd | ✅ shipped |
 | Auto Phase 2 — cron scheduler + inotify watcher + timer units | ✅ shipped |
 | Auto Phase 3 — stack-hash dedup + `file_github_issue` on CRITICAL | ✅ shipped |
-| Auto Phase 4 (deferred) — CVE/NVD-driven target picker + web dashboard | ⏸ not planned |
+| Auto Phase 4 — Flask dashboard (`localhost:5557`) over SQLite jobq | ✅ shipped |
+| Auto Phase 5 (deferred) — CVE/NVD-driven target picker + claw-core deploy | ⏸ not planned |

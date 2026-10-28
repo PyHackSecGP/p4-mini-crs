@@ -17,12 +17,15 @@ auto/
 ├── agent.py           # worker daemon (Claude Agent SDK, Haiku 4.5)
 ├── scheduler.py       # cron producer (watchlist + github poll)
 ├── watcher.py         # inotify producer (watchlist dirs)
+├── dashboard.py       # Flask dashboard (localhost:5557)
+├── templates/         # Jinja templates for dashboard
 ├── state.json         # scheduler state (github last_sha); auto-created
 ├── systemd/
 │   ├── p4-agent.service
 │   ├── p4-scheduler.service
 │   ├── p4-scheduler.timer
-│   └── p4-watcher.service
+│   ├── p4-watcher.service
+│   └── p4-dashboard.service
 ├── .env.example       # copy to .env
 └── logs/              # agent + per-job runner logs
 ```
@@ -32,7 +35,7 @@ auto/
 ```bash
 cd ~/projects/p4-mini-crs
 python3 -m venv venv && source venv/bin/activate
-pip install -r requirements.txt anthropic python-dotenv pyyaml watchdog
+pip install -r requirements.txt anthropic python-dotenv pyyaml watchdog flask
 
 cp auto/.env.example auto/.env
 $EDITOR auto/.env   # fill ANTHROPIC_API_KEY + TELEGRAM_*
@@ -56,11 +59,11 @@ python3 auto/jobq.py list
 
 ```bash
 mkdir -p ~/.config/systemd/user
-for u in p4-agent.service p4-scheduler.service p4-scheduler.timer p4-watcher.service; do
+for u in p4-agent.service p4-scheduler.service p4-scheduler.timer p4-watcher.service p4-dashboard.service; do
   ln -sf ~/projects/p4-mini-crs/auto/systemd/$u ~/.config/systemd/user/
 done
 systemctl --user daemon-reload
-systemctl --user enable --now p4-agent.service p4-watcher.service p4-scheduler.timer
+systemctl --user enable --now p4-agent.service p4-watcher.service p4-scheduler.timer p4-dashboard.service
 systemctl --user status p4-agent.service p4-watcher.service p4-scheduler.timer
 tail -f ~/projects/p4-mini-crs/auto/logs/*.log
 ```
@@ -91,3 +94,19 @@ repo-write scope on the target repos. Labels `security`, `p4-crs`, and
 - [x] Phase 1: core worker + Telegram + systemd daemon
 - [x] Phase 2: cron scheduler (daily 03:00) + inotify watcher + systemd timer/service units
 - [x] Phase 3: expanded SARIF rubric + prior-findings injection + stack-hash dedup + `file_github_issue` tool for gh-sourced CRITICAL findings
+- [x] Phase 4: Flask dashboard (localhost:5557) — queue stats, severity histogram, per-target history, manual trigger form
+
+## Dashboard
+
+Starts on `http://127.0.0.1:5557` by default. Override with `P4_DASHBOARD_HOST` /
+`P4_DASHBOARD_PORT` env vars (set in `auto/.env` or the systemd unit). Front with
+a reverse proxy or Tailscale ACL — no auth built in.
+
+Routes:
+
+| Route                 | Shows                                              |
+|-----------------------|----------------------------------------------------|
+| `/`                   | queue counts, severity histogram, targets, recent jobs |
+| `/target/<path>`      | prior findings + full job history for one target  |
+| `/findings`           | all CRITICAL/HIGH/MEDIUM findings, newest first    |
+| `/trigger`            | manual enqueue form (dedup against pending/running)|

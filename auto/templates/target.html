@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}{{ target }} — P4 Mini-CRS{% endblock %}
+{% block content %}
+
+<h2>Target</h2>
+<p><code>{{ target }}</code></p>
+
+<h2>Prior findings ({{ prior|length }})</h2>
+<table>
+  <tr><th>Stack hash</th><th>Severity</th><th>Action</th><th>Finished</th></tr>
+  {% for p in prior %}
+  <tr>
+    <td class="mono">{{ p.stack_hash }}</td>
+    <td><span class="sev {{ sev_class(p.severity) }}">{{ p.severity }}</span></td>
+    <td class="mono muted">{{ p.action }}</td>
+    <td class="mono muted">{{ p.finished_at }}</td>
+  </tr>
+  {% else %}
+  <tr><td colspan="4" class="muted">No prior findings with stack hashes.</td></tr>
+  {% endfor %}
+</table>
+
+<h2>All jobs for this target ({{ jobs|length }})</h2>
+<table>
+  <tr><th>Job</th><th>Source</th><th>Status</th><th>Severity</th><th>Action</th><th>Fuzz</th><th>SARIF</th><th>Created</th><th>Finished</th></tr>
+  {% for j in jobs %}
+  <tr>
+    <td class="mono">{{ j.job_id[:8] }}</td>
+    <td class="mono muted">{{ j.source }}</td>
+    <td>{{ j.status }}</td>
+    <td>{% if j.severity %}<span class="sev {{ sev_class(j.severity) }}">{{ j.severity }}</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+    <td class="mono muted">{{ j.action or '—' }}</td>
+    <td class="mono muted">{{ j.fuzz_time }}s</td>
+    <td class="mono muted">{{ (j.sarif_path or '')|truncate(30, True) }}</td>
+    <td class="mono muted">{{ j.created_at }}</td>
+    <td class="mono muted">{{ j.finished_at or '—' }}</td>
+  </tr>
+  {% endfor %}
+</table>
+
+{% endblock %}

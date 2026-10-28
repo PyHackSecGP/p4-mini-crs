@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>{% block title %}P4 Mini-CRS{% endblock %}</title>
+<style>
+  :root {
+    --bg: #0f1115; --fg: #e8e8e8; --muted: #8a8a8a; --accent: #4ea1ff;
+    --card: #171b22; --border: #262b35;
+    --crit: #ff4757; --high: #ff8c42; --med: #ffd93d; --low: #4ea1ff; --none: #8a8a8a;
+  }
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",monospace;
+         margin: 0; background: var(--bg); color: var(--fg); font-size: 14px; }
+  header { padding: 16px 24px; border-bottom: 1px solid var(--border);
+           display: flex; gap: 24px; align-items: center; }
+  header h1 { margin: 0; font-size: 18px; color: var(--accent); }
+  header nav a { color: var(--muted); margin-right: 16px; text-decoration: none; }
+  header nav a:hover { color: var(--fg); }
+  main { padding: 24px; max-width: 1200px; margin: 0 auto; }
+  h2 { color: var(--accent); margin-top: 32px; font-size: 15px;
+       text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid var(--border);
+       padding-bottom: 6px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit,minmax(140px,1fr));
+           gap: 12px; margin: 12px 0; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 6px;
+          padding: 14px; }
+  .card .n { font-size: 28px; font-weight: 600; color: var(--accent); }
+  .card .k { color: var(--muted); font-size: 11px; text-transform: uppercase; margin-top: 4px; }
+  table { width: 100%; border-collapse: collapse; margin: 8px 0 24px; font-size: 13px; }
+  th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: 500; text-transform: uppercase; font-size: 11px; }
+  tr:hover { background: var(--card); }
+  code { font-family: Menlo, Consolas, monospace; color: var(--accent); }
+  .mono { font-family: Menlo, Consolas, monospace; font-size: 12px; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .sev { display: inline-block; padding: 2px 8px; border-radius: 4px;
+         font-size: 11px; font-weight: 600; text-transform: uppercase; }
+  .sev-crit    { background: var(--crit); color: #fff; }
+  .sev-high    { background: var(--high); color: #fff; }
+  .sev-med     { background: var(--med);  color: #000; }
+  .sev-low     { background: var(--low);  color: #fff; }
+  .sev-none    { background: var(--none); color: #fff; }
+  .sev-unknown { background: #333; color: var(--muted); }
+  form { background: var(--card); padding: 16px; border: 1px solid var(--border);
+         border-radius: 6px; max-width: 600px; }
+  form label { display: block; margin: 10px 0 4px; color: var(--muted); font-size: 12px; }
+  form input, form select { background: var(--bg); color: var(--fg);
+         border: 1px solid var(--border); padding: 8px; border-radius: 4px; width: 100%; }
+  form button { background: var(--accent); color: #000; border: 0;
+         padding: 10px 20px; border-radius: 4px; margin-top: 16px; font-weight: 600;
+         cursor: pointer; }
+  .muted { color: var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <h1>P4 Mini-CRS</h1>
+  <nav>
+    <a href="{{ url_for('index') }}">queue</a>
+    <a href="{{ url_for('findings') }}">findings</a>
+    <a href="{{ url_for('trigger') }}">manual trigger</a>
+  </nav>
+  <span class="muted mono" style="margin-left:auto">autonomous C fuzz + triage pipeline</span>
+</header>
+<main>
+{% block content %}{% endblock %}
+</main>
+</body>
+</html>

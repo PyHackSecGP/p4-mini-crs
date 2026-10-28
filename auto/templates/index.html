@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Queue — P4 Mini-CRS{% endblock %}
+{% block content %}
+
+<h2>Queue</h2>
+<div class="cards">
+  <div class="card"><div class="n">{{ status_counts.get('pending', 0) }}</div><div class="k">pending</div></div>
+  <div class="card"><div class="n">{{ status_counts.get('running', 0) }}</div><div class="k">running</div></div>
+  <div class="card"><div class="n">{{ status_counts.get('done', 0) }}</div><div class="k">done</div></div>
+  <div class="card"><div class="n">{{ status_counts.get('failed', 0) }}</div><div class="k">failed</div></div>
+</div>
+
+<h2>Severity (done)</h2>
+<div class="cards">
+  {% for sev in ['CRITICAL','HIGH','MEDIUM','LOW','NONE'] %}
+  <div class="card">
+    <div class="n">{{ severity_counts.get(sev, 0) }}</div>
+    <div class="k"><span class="sev {{ sev_class(sev) }}">{{ sev }}</span></div>
+  </div>
+  {% endfor %}
+</div>
+
+<h2>Targets ({{ targets|length }})</h2>
+<table>
+  <tr><th>Target</th><th>Jobs</th><th>Last seen</th><th>Last severity</th></tr>
+  {% for t in targets %}
+  <tr>
+    <td><a href="{{ url_for('target', target=t.target.lstrip('/')) }}"><code>{{ t.target }}</code></a></td>
+    <td>{{ t.n_jobs }}</td>
+    <td class="mono muted">{{ t.last_seen }}</td>
+    <td>{% if t.last_severity %}<span class="sev {{ sev_class(t.last_severity) }}">{{ t.last_severity }}</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+  </tr>
+  {% else %}
+  <tr><td colspan="4" class="muted">No targets yet. <a href="{{ url_for('trigger') }}">Manually trigger one</a>.</td></tr>
+  {% endfor %}
+</table>
+
+<h2>Recent jobs</h2>
+<table>
+  <tr><th>Job</th><th>Target</th><th>Source</th><th>Status</th><th>Severity</th><th>Action</th><th>Created</th></tr>
+  {% for j in recent %}
+  <tr>
+    <td class="mono">{{ j.job_id[:8] }}</td>
+    <td><a href="{{ url_for('target', target=j.target.lstrip('/')) }}"><code>{{ j.target.split('/')[-1] }}</code></a></td>
+    <td class="mono muted">{{ j.source }}</td>
+    <td>{{ j.status }}</td>
+    <td>{% if j.severity %}<span class="sev {{ sev_class(j.severity) }}">{{ j.severity }}</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+    <td class="mono muted">{{ j.action or '—' }}</td>
+    <td class="mono muted">{{ j.created_at }}</td>
+  </tr>
+  {% else %}
+  <tr><td colspan="7" class="muted">No jobs yet.</td></tr>
+  {% endfor %}
+</table>
+
+{% endblock %}

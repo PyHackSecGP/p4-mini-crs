@@ -1,0 +1,18 @@
+[Unit]
+Description=P4 Mini-CRS Flask dashboard
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/projects/p4-mini-crs
+EnvironmentFile=%h/projects/p4-mini-crs/auto/.env
+Environment=P4_DASHBOARD_HOST=127.0.0.1
+Environment=P4_DASHBOARD_PORT=5557
+ExecStart=/bin/bash -c 'source venv/bin/activate 2>/dev/null; exec python3 auto/dashboard.py'
+Restart=on-failure
+RestartSec=15s
+StandardOutput=append:%h/projects/p4-mini-crs/auto/logs/dashboard.log
+StandardError=append:%h/projects/p4-mini-crs/auto/logs/dashboard.log
+
+[Install]
+WantedBy=default.target
