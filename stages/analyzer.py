@@ -46,7 +46,7 @@ def _build_prompt(crash: CrashInfo, source_context: str) -> str:
 ## Task
 Analyse this crash and respond with a JSON object containing exactly these fields:
 {{
-  "cwe_id": "CWE-XXX",
+  "cwe_id": "CWE-NNN (numeric MITRE id, or CWE-unknown if indeterminate)",
   "cwe_name": "Name of the CWE",
   "vulnerability_type": "One-line type description",
   "vulnerable_function": "function_name",
