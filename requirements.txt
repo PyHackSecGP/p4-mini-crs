@@ -1,1 +1,6 @@
-requests>=2.31.0
+anthropic>=2.3
+flask>=3.1
+watchdog>=6.0
+pyyaml>=6.0
+python-dotenv>=1.2
+requests>=2.34
